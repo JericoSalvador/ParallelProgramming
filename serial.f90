@@ -27,13 +27,13 @@ program serial
     print *, A(i,:)
   end do
  
-  do x = 0 , n-1
-    do y = 0 , n-1
+  do y = 0 , n-1
+    do x = 0 , n-1
       counter = 0 
       do i = -1, 1
         do j = -1, 1
           xpos = mod(x + i + n, n) 
-          ypos = mod(y + i + n, n)
+          ypos = mod(y + j + n, n)
           if(.not. (j==0 .and. i==0) .and. A(xpos,ypos) == 1) then 
             counter = counter + 1
           end if 
@@ -50,13 +50,14 @@ program serial
     end do 
   end do 
 
-  
+  A = newA
+  deallocate(newA)
   print *, 'newA:'
   do i = 0, n-1 
-    print *, newA(i,:)
+    print *, A(i,:)
   end do
  
   deallocate(A) 
-  deallocate(newA)
+!  deallocate(newA)
 
 end program serial
