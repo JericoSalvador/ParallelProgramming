@@ -13,7 +13,7 @@ program serial
   call MPI_INIT(ierr)
   call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
   call MPI_COMM_SIZE(MPI_COMM_WORLD,numprocs,ierr)
-
+  print *, 'processor id:', myid
   call date_and_time(values = dateTime)
   allocate(A(0:n-1,0:n-1))
   allocate(newA(0:n-1, 0:n-1))
