@@ -1,12 +1,18 @@
 program serial
-
   implicit none
+  include 'mpif.h'
+
   integer, dimension(:,:), allocatable :: A
   integer, dimension(:,:), allocatable :: newA
   integer :: n = 4  ! A = n x n matrix 
   integer i, j , x , y, counter, xpos, ypos
   integer dateTime(8);
+  
+  integer ierr, myid, numprocs
 
+  call MPI_INIT(ierr)
+  call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD,numprocs,ierr)
 
   call date_and_time(values = dateTime)
   allocate(A(0:n-1,0:n-1))
@@ -14,7 +20,7 @@ program serial
   call srand(dateTime(8))
   do j = 0 , n-1
     do i = 0, n-1
-      if( rand() * 6 <= 3) then 
+      if( rand() * 6 < 2) then 
         A(i,j) = 1
       else 
         A(i,j) = 0
@@ -59,5 +65,7 @@ program serial
  
   deallocate(A) 
 !  deallocate(newA)
+  call MPI_FINALIZE(ierr)
 
+stop
 end program serial
