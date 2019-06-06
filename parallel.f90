@@ -56,7 +56,7 @@ program parallel
 !    print *, myid, ':', partialA(:,i)
 !  end do 
   call MPI_GATHER(partialA, n*localn, MPI_INTEGER, A, n*localn, MPI_INTEGER, 0, &
-                  & MPI_COMM_WORLD, ierr)  
+                 & MPI_COMM_WORLD, ierr)  
   if(myid == 0) then  
     print *, 'A:'
     do i = 1, n 
@@ -66,30 +66,74 @@ program parallel
   
   rightId = mod(myid+1, numprocs) 
   leftId = mod(numprocs + myid-1, numprocs)  
-  allocate(temp(0:n+1, 0:localn+1)) 
+  allocate(temp(0:n+1, 0:localn+1))
+
+! this is to take care of the top and bottom ghost cells 
   temp(1:n, 1:localn) = partialA
   temp(0,1:localn) = partialA(localn,:) 
   temp(n+1,1:localn) = partialA(1,:)  
+
+! This is to take care of the right and left ghost cells 
   call MPI_SENDRECV(temp(:,1), n+2, MPI_INTEGER, leftId, tag, &
 &      temp(:,localn+1), n+2, MPI_INTEGER, rightId, tag, MPI_COMM_WORLD, stat, ierr)  
   
   call MPI_SENDRECV(temp(:,localn), n+2, MPI_INTEGER, rightId, tag, &
 &      temp(:,0), n+2, MPI_INTEGER, leftId, tag, MPI_COMM_WORLD, stat, ierr)  
-  if(myid == 0) then 
-    call MPI_SENDRECV(temp(1,1), 1, MPI_INTEGER, numprocs-1, tag, &
-&      temp(0,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
 
-    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, numprocs-1, tag, &
-&      temp(n+1,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
-  end if 
+  print *, myid, 'finished send recv'
 
-  if(myid == numprocs-1) then 
-    call MPI_SENDRECV(temp(1,localn), 1, MPI_INTEGER, 0, tag, &
-&      temp(0,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
+! This is to take care of the corner pieces
+!  if(myid == 0) then 
+!    call MPI_SENDRECV(temp(1,1), 1, MPI_INTEGER, numprocs-1, tag, &
+!&      temp(0,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
+!
+!    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, numprocs-1, tag, &
+!&      temp(n+1,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
+!  end if 
+!
+!  if(myid == numprocs-1) then 
+!    call MPI_SENDRECV(temp(1,localn), 1, MPI_INTEGER, 0, tag, &
+!&      temp(0,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
+!
+!    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, 0, tag, &
+!&      temp(n+1,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
+!  end if 
+ 
+! Calculate the new partial matrix 
+  do y = 1, localn
+    do x = 1 , n
+      counter = 0 
+      do i = -1, 1
+        do j = -1, 1
+          if(.not. (j==0 .and. i==0) .and. temp(x+i,y+i) == 1) then 
+            counter = counter + 1
+          end if 
+        end do 
+      end do
+      if(counter == 3) then 
+        partialA(x,y) = 1
+      else if(counter == 2) then 
+        partialA(x,y) = partialA(x,y)
+      else 
+        partialA(x,y) = 0
+      end if 
 
-    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, 0, tag, &
-&      temp(n+1,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
-  end if 
+    end do 
+  end do 
+
+  print *, myid, 'finished new matrix'
+
+
+  call MPI_GATHER(partialA, n*localn, MPI_INTEGER, A, n*localn, MPI_INTEGER, 0, &
+                 & MPI_COMM_WORLD, ierr)  
+  
+  if(myid == 0) then  
+    print *, 'newA:'
+    do i = 1, n 
+      print *, A(i,:)
+    end do
+  end if
+  deallocate(temp)
 
   if(myid == 0) then 
     deallocate(A) 
