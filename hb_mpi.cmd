@@ -6,6 +6,6 @@
 #SBATCH -o gol%j.out
 #SBATCH -N 1
 #SBATCH -n 2
-#SBATCH -t 00:10:00
+#SBATCH -t 00:15:00
 
 mpirun -np 2 ./gol-parallel 
