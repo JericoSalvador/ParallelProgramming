@@ -101,18 +101,18 @@ program parallel
     call MPI_SENDRECV(temp(n,localn), 1, MPI_INTEGER, 0, tag, &
 &      temp(0,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
   end if 
-  if(myid == 1) then 
-    do i = 0, n+1 
-      print *, temp(i,:) 
-    end do 
-  end if  
+!  if(myid == 1) then 
+!    do i = 0, n+1 
+!      print *, temp(i,:) 
+!    end do 
+!  end if  
 ! Calculate the new partial matrix 
   do y = 1, localn
     do x = 1 , n
       counter = 0 
-      do i = -1, 1
-        do j = -1, 1
-          if(.not. (j==0 .and. i==0) .and. temp(x+i,y+i) == 1) then 
+      do j = -1, 1
+        do i = -1, 1
+          if(.not. (j==0 .and. i==0) .and. temp(x+i,y+j) == 1) then 
             counter = counter + 1
           end if 
         end do 
@@ -129,8 +129,12 @@ program parallel
   end do 
 
   print *, myid, 'finished new matrix'
-  
-
+if(myid == 0) then   
+  print *, myid, ':', partialA
+  do i = 1, localn 
+    print *, myid, ':', partialA(:,i)
+  end do 
+end if 
   call MPI_GATHER(partialA, n*localn, MPI_INTEGER, A, n*localn, MPI_INTEGER, 0, &
                  & MPI_COMM_WORLD, ierr)  
   
