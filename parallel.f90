@@ -1,71 +1,102 @@
-program serial
+program parallel
   implicit none
   include 'mpif.h'
 
   integer, dimension(:,:), allocatable :: A
-  integer, dimension(:,:), allocatable :: newA
+  integer, dimension(:,:), allocatable :: partialA 
+  integer, dimension(:,:), allocatable :: temp
   integer :: n = 4  ! A = n x n matrix 
-  integer i, j , x , y, counter, xpos, ypos
+  integer i, j , x , y, counter, xpos, ypos, localn
   integer dateTime(8);
   
-  integer ierr, myid, numprocs
+  integer ierr, myid, numprocs, rightId , leftId, tag
+  integer stat(MPI_STATUS_SIZE)
 
   call MPI_INIT(ierr)
   call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
   call MPI_COMM_SIZE(MPI_COMM_WORLD,numprocs,ierr)
+  
+  call srand(floor(MPI_WTIME()) + myid)
   print *, 'processor id:', myid
-  call date_and_time(values = dateTime)
-  allocate(A(0:n-1,0:n-1))
-  allocate(newA(0:n-1, 0:n-1))
-  call srand(dateTime(8))
-  do j = 0 , n-1
-    do i = 0, n-1
+  if(mod(n,numprocs) /= 0) then
+    if( myid == 0) then  
+      print *, 'numprocs does not divide lenght of matrix'
+    end if 
+    do
+      numprocs = numprocs - 1
+      if(mod(n, numprocs) == 0) exit
+    end do
+    if (myid == 0) then  
+      print *, 'using', numprocs , 'processors' 
+    end if 
+  end if
+  print *, 'initiating processes'
+  localn = n/numprocs 
+  
+  if(myid == 0) then
+    allocate(A(n,n))
+  end if 
+  
+  print *, 'allocating', myid
+
+  allocate(partialA(n,localn)) 
+  do j = 1 , localn
+    do i = 1,n
       if( rand() * 6 < 2) then 
-        A(i,j) = 1
+        partialA(i,j) = 1
       else 
-        A(i,j) = 0
+        partialA(i,j) = 0
       end if  
     end do 
   end do
+  print *, 'done local:', myid 
+ 
+!  print *, myid, ':', partialA
+!  do i = 1, localn 
+!    print *, myid, ':', partialA(:,i)
+!  end do 
+  call MPI_GATHER(partialA, n*localn, MPI_INTEGER, A, n*localn, MPI_INTEGER, 0, &
+                  & MPI_COMM_WORLD, ierr)  
+  if(myid == 0) then  
+    print *, 'A:'
+    do i = 1, n 
+      print *, A(i,:)
+    end do
+  end if
   
-  print *, 'A:'
-  do i = 0, n-1 
-    print *, A(i,:)
-  end do
- 
-  do y = 0 , n-1
-    do x = 0 , n-1
-      counter = 0 
-      do i = -1, 1
-        do j = -1, 1
-          xpos = mod(x + i + n, n) 
-          ypos = mod(y + j + n, n)
-          if(.not. (j==0 .and. i==0) .and. A(xpos,ypos) == 1) then 
-            counter = counter + 1
-          end if 
-        end do 
-      end do
-      if(counter == 3) then 
-        newA(x,y) = 1
-      else if(counter == 2) then 
-        newA(x,y) = A(x,y)
-      else 
-        newA(x,y) = 0
-      end if 
+  rightId = mod(myid+1, numprocs) 
+  leftId = mod(numprocs + myid-1, numprocs)  
+  allocate(temp(0:n+1, 0:localn+1)) 
+  temp(1:n, 1:localn) = partialA
+  temp(0,1:localn) = partialA(localn,:) 
+  temp(n+1,1:localn) = partialA(1,:)  
+  call MPI_SENDRECV(temp(:,1), n+2, MPI_INTEGER, leftId, tag, &
+&      temp(:,localn+1), n+2, MPI_INTEGER, rightId, tag, MPI_COMM_WORLD, stat, ierr)  
+  
+  call MPI_SENDRECV(temp(:,localn), n+2, MPI_INTEGER, rightId, tag, &
+&      temp(:,0), n+2, MPI_INTEGER, leftId, tag, MPI_COMM_WORLD, stat, ierr)  
+  if(myid == 0) then 
+    call MPI_SENDRECV(temp(1,1), 1, MPI_INTEGER, numprocs-1, tag, &
+&      temp(0,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
 
-    end do 
-  end do 
+    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, numprocs-1, tag, &
+&      temp(n+1,0), 1, MPI_INTEGER, numprocs-1, tag, MPI_COMM_WORLD, stat,ierr)
+  end if 
 
-  A = newA
-  deallocate(newA)
-  print *, 'newA:'
-  do i = 0, n-1 
-    print *, A(i,:)
-  end do
- 
-  deallocate(A) 
-!  deallocate(newA)
+  if(myid == numprocs-1) then 
+    call MPI_SENDRECV(temp(1,localn), 1, MPI_INTEGER, 0, tag, &
+&      temp(0,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
+
+    call MPI_SENDRECV(temp(n,1), 1, MPI_INTEGER, 0, tag, &
+&      temp(n+1,localn+1), 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, stat,ierr)
+  end if 
+
+  if(myid == 0) then 
+    deallocate(A) 
+  end if 
+  deallocate(partialA)
+  call MPI_BARRIER(MPI_COMM_WORLD,ierr) 
   call MPI_FINALIZE(ierr)
 
-stop
-end program serial
+!stop
+end program parallel
